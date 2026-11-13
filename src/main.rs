@@ -1,16 +1,21 @@
 mod actions;
 mod app;
+mod ask;
 mod classify;
 mod cleanup;
 mod cleanup_view;
 mod collect;
+mod inspect;
 mod interact;
+mod mcp;
 mod model;
 mod native;
 mod procs;
+mod redact;
 mod native_track;
 mod rules;
 mod sources;
+mod stream;
 mod track;
 mod tracker;
 mod ui;
@@ -34,18 +39,22 @@ const HELP: &str = concat!(
     "  parasight --snapshot      print one frame as text and exit\n",
     "      --width W --height H  frame size (default 100x32)\n",
     "      --view cleanup        show the clean-up popup\n",
+    "      --view ask            show a canned answer where K puts its answer\n",
     "      --metric cpu|mem|net  sort and chart by this\n",
     "      --select NAME         select the first item whose name contains NAME\n",
     "      --filter TEXT         apply a filter\n",
     "      --ticks N             refreshes to gather first (default 3)\n",
     "      --color               keep colours (ansi escapes)\n",
     "  parasight --list          print groups and items as plain text\n",
+    "  parasight ask NAME        ask claude code what NAME is and print the one-line answer\n",
+    "  parasight mcp             read-only mcp server over stdio (what ask gives claude code)\n",
     "  --no-docker               do not look for containers\n",
     "\n",
     "keys: j/k move · h/l fold (l on an item: its processes) · gg/G top/end\n",
     "      ctrl-d/ctrl-u half page · zo zc za zR zM folds · 1/2/3 cpu/mem/net\n",
     "      / filter · dd kill (asks first) · q quit\n",
     "      c clean up: what looks safe to close, checked or not, asks before closing\n",
+    "      K what is this: one line from claude code about the selected app or process\n",
 );
 
 #[derive(Default)]
@@ -147,9 +156,65 @@ fn headless(args: &Args) {
         if args.view == "cleanup" {
             cleanup_view::open(&mut app);
         }
+        if args.view == "ask" {
+            ui::snapshot(&mut app, args.width, args.height, false); // settles the selection
+            app.set_canned_answer("it's a web browser, with one process per tab (canned answer)");
+        }
         print!("{}", ui::snapshot(&mut app, args.width, args.height, args.color));
     }
     app.col.shared.shutdown();
+}
+
+/// `parasight ask NAME`: the same question K asks, without the ui. Prints the one-line answer
+/// to stdout and what happened on the way (with timings) to stderr.
+fn ask_once(argv: &[String]) -> i32 {
+    let Some(name) = argv.first() else {
+        eprintln!("usage: parasight ask NAME   (an item name, or part of one)");
+        return 2;
+    };
+    let args = Args { ticks: 1, no_docker: false, ..Default::default() };
+    let mut app = build(&args, true);
+    tick(&mut app);
+    std::thread::sleep(Duration::from_millis(500));
+    tick(&mut app);
+    let world = inspect::World::from_collector(&app.col, None);
+    let Some(key) = world.find(name).map(|i| i.key.clone()) else {
+        eprintln!("parasight: nothing running matches \"{name}\"");
+        app.col.shared.shutdown();
+        return 1;
+    };
+    app.sel = key;
+    app.moved = true;
+    // a testing hook: another question, to check what the locked-down child can and cannot do
+    let question = std::env::var("PARASIGHT_ASK_QUESTION").unwrap_or_else(|_| ask::QUESTION.to_string());
+    let t0 = Instant::now();
+    app.ask_selected(&question);
+    let mut last = String::new();
+    while app.ask.busy() {
+        if app.ask.poll()
+            && let Some((_, line)) = app.ask_line()
+        {
+            let now = format!("{line:?}");
+            if now != last {
+                eprintln!("[{:5.2}s] {now}", t0.elapsed().as_secs_f64());
+                last = now;
+            }
+        }
+        std::thread::sleep(Duration::from_millis(20));
+    }
+    let code = match app.ask_line() {
+        Some((_, ask::Line::Answer(a))) => {
+            println!("{a}");
+            0
+        }
+        Some((_, ask::Line::Failed(why))) => {
+            eprintln!("parasight: {why}");
+            1
+        }
+        _ => 1,
+    };
+    app.col.shared.shutdown();
+    code
 }
 
 fn run_tui(args: &Args) -> std::io::Result<()> {
@@ -176,7 +241,7 @@ fn run_tui(args: &Args) -> std::io::Result<()> {
         }
         // sleep until the next refresh, a key, or (while something is closing) a short while
         let wait = next_tick.saturating_duration_since(Instant::now());
-        let wait = if app.busy() { wait.min(Duration::from_millis(100)) } else { wait };
+        let wait = if app.waiting() { wait.min(Duration::from_millis(80)) } else { wait };
         match event::poll(wait) {
             Ok(true) => {
                 // take what is waiting (a burst of keys, a paste) before drawing once; bounded,
@@ -199,7 +264,8 @@ fn run_tui(args: &Args) -> std::io::Result<()> {
             Ok(false) => {}
             Err(e) => break Err(e),
         }
-        if app.poll_actions() {
+        // while a question is out, keep redrawing so the loader turns
+        if app.poll_actions() | app.ask.poll() | app.ask.busy() {
             dirty = true;
         }
         if Instant::now() >= next_tick {
@@ -213,6 +279,7 @@ fn run_tui(args: &Args) -> std::io::Result<()> {
     };
     let _ = execute!(std::io::stdout(), DisableMouseCapture);
     ratatui::restore();
+    app.ask.cancel(); // stops the claude child, if one is still answering
     app.tracker.save();
     app.col.shared.shutdown();
     result
@@ -230,6 +297,12 @@ fn main() {
     }
     if argv.first().map(String::as_str) == Some("track") {
         std::process::exit(track::run(&argv[1..]));
+    }
+    if argv.first().map(String::as_str) == Some("mcp") {
+        std::process::exit(mcp::serve());
+    }
+    if argv.first().map(String::as_str) == Some("ask") {
+        std::process::exit(ask_once(&argv[1..]));
     }
     let args = match parse_args(&argv) {
         Ok(a) => a,

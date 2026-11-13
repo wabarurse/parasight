@@ -1,0 +1,4 @@
+{"type": "system", "subtype": "init", "tools": ["mcp__parasight__get_item", "mcp__parasight__list_items", "mcp__parasight__search", "mcp__parasight__system_summary"], "mcp_servers": [{"name": "parasight", "status": "connected", "source": "dynamic"}], "model": "claude-haiku-5-5", "permissionMode": "dontAsk"}
+{"type": "system", "subtype": "status", "status": "requesting"}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "Failed to authenticate: OAuth session expired and could not be refreshed"}]}}
+{"type": "result", "subtype": "success", "is_error": true, "result": "Failed to authenticate: OAuth session expired and could not be refreshed", "num_turns": 1}

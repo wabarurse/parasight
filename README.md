@@ -39,6 +39,8 @@ Other ways to run it:
 | `parasight --no-docker` | Does not look for containers. |
 | `parasight --snapshot --view cleanup` | The same, with the clean-up popup open. |
 | `parasight track` | Records what you interact with, without the UI (see [Clean-up](#clean-up)). |
+| `parasight ask NAME` | Asks Claude Code what NAME is and prints the one-line answer (see [What is this?](#what-is-this)). |
+| `parasight mcp` | A read-only MCP server over stdio with parasight's view of the machine. |
 
 ## Keys
 
@@ -54,6 +56,7 @@ Other ways to run it:
 | `/` | Filter by app or process name as you type. Enter keeps it, Esc clears it |
 | `dd` | Kill the selected app, or the selected process when you are in the process table. Asks `y / n` first |
 | `c` | Open the clean-up view |
+| `K` | What is this? One line about the selected app or process, from Claude Code |
 | `q` | Quit |
 
 A pending prefix (`g`, `z`, `d`) shows at the right of the bottom line. The mouse also works:
@@ -181,6 +184,52 @@ keep = ["spotify", "postgres"]   # item names, without the port
 
 The design notes are in [docs/cleanup-design.md](docs/cleanup-design.md).
 
+## What is this?
+
+Press `K` on an app, a dev item or (in the process table) a single process, and the bottom
+bar says what it is: "it's a google chrome browser instance", "this is your api server for
+the shop app". It stays there until the next key. The answer comes from your own Claude
+Code, run headless.
+
+- **Only on `K`.** Nothing is asked when you merely select something. Answers are kept for
+  the session, so asking again or coming back to an item shows the line at once.
+- **What is sent.** The selected item's details go to Anthropic through your Claude Code
+  login: name, group, executable path, command line, working directory and project name,
+  listening ports, parent chain, bundle id, container image, and its largest processes.
+  Before anything is sent, secrets are removed from command lines (values after flags such
+  as `--password`, `--token`, `-p`; `KEY=value` pairs whose key looks secret; credentials in
+  URLs; long random-looking strings), your home directory becomes `~`, and your account name
+  becomes "you". Process environments are never read at all.
+- **Read-only.** The Claude Code child is started with no built-in tools (`--tools ""`), no
+  settings, hooks, plugins or other MCP servers, in an empty directory, and may only call
+  parasight's four read-only tools. parasight checks the tool list Claude Code reports and
+  stops if anything else is on it. There is no tool that kills, signals, writes, runs a
+  command or reaches the network.
+- **Requirements.** The `claude` command must be installed and signed in. Without it the
+  line reads "ask needs claude code: install it and run `claude` once to sign in".
+- **Model.** The fast model (`haiku`) by default, since the answer is one line. Set
+  `PARASIGHT_ASK_MODEL` to use another, and `PARASIGHT_CLAUDE` to point at a different
+  `claude` binary.
+
+### The MCP server
+
+`parasight mcp` is what the child talks to. You can add it to your normal Claude Code and ask
+about your machine from there:
+
+```sh
+claude mcp add parasight -- /full/path/to/parasight mcp
+```
+
+| Tool | Returns |
+|---|---|
+| `get_item(name_or_pid)` | One item in full: group, executable, command line, cwd and project, ports, parent chain, bundle id, last-interacted note, processes |
+| `list_items(group?, sort_by?, limit?)` | What is running, with cpu, memory, network and process count |
+| `search(query)` | Items whose name, path or command line contains the text |
+| `system_summary()` | Totals: cpu, cores, memory, network, uptime, counts per group |
+
+It takes its own fresh look at the machine on the first call, reads the last-interacted file
+if there is one, and passes everything through the same redaction.
+
 ## Known limits
 
 - **macOS only.**
@@ -200,3 +249,6 @@ The design notes are in [docs/cleanup-design.md](docs/cleanup-design.md).
   started on purpose with `nohup` look orphaned; add them to `keep`.
 - **tty access time** is shared by everything in one terminal tab. It works per pane under
   tmux.
+- **`K` answers are a model's reading** of the details, usually right for well-known
+  software and a guess for obscure helpers. The question travels as an argument of the
+  `claude` process, so other processes of yours could read it (already redacted) while it runs.

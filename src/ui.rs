@@ -470,6 +470,20 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
     if let Some(f) = crate::cleanup_view::footer(app) {
         return f;
     }
+    // the answer to K stays here until the next key
+    if app.ask_shown
+        && let Some((label, line)) = app.ask_line()
+    {
+        use crate::ask::Line;
+        let (text, style) = match line {
+            Line::Waiting(t) => (if t.trim_matches('…').is_empty() { "" } else { t.as_str() }, fg(DIM)),
+            Line::Answer(t) => (t.as_str(), fg(BRIGHT)),
+            Line::Failed(t) => (t.as_str(), fg(AMBER)),
+        };
+        // a turning loader in place of the K while the answer is on its way
+        let lead = if matches!(line, Line::Waiting(_)) { format!(" {} ", app.ask.spinner()) } else { " K ".to_string() };
+        return vec![raw(lead, bold(TEAL)), s(format!("{label}{text}"), style)];
+    }
     if !app.flash.is_empty() && !app.filtering {
         return vec![s(format!(" {}", app.flash), fg(DIM))];
     }
@@ -482,7 +496,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
         ];
     }
     let mut hints = if app.focus == Focus::Table {
-        keys(&[("j/k", "move"), ("h", "back to list"), ("gg/G", "top/end"), ("^d/^u", "page"), ("1/2/3", "metric"), ("dd", "kill process"), ("q", "quit")])
+        keys(&[("j/k", "move"), ("h", "back to list"), ("gg/G", "top/end"), ("^d/^u", "page"), ("1/2/3", "metric"), ("dd", "kill process"), ("K", "what is this"), ("q", "quit")])
     } else {
         keys(&[
             ("j/k", "move"),
@@ -493,6 +507,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
             ("/", "filter"),
             ("dd", "kill"),
             ("c", "clean"),
+            ("K", "what is this"),
             ("q", "quit"),
         ])
     };

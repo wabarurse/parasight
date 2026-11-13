@@ -1,0 +1,17 @@
+{"type": "system", "subtype": "init", "tools": ["mcp__parasight__get_item", "mcp__parasight__list_items", "mcp__parasight__search", "mcp__parasight__system_summary"], "mcp_servers": [{"name": "parasight", "status": "connected", "source": "dynamic"}], "model": "claude-haiku-5-5", "permissionMode": "dontAsk"}
+{"type": "system", "subtype": "status", "status": "requesting"}
+{"type": "stream_event", "event": {"type": "message_start", "message": {"role": "assistant", "content": []}}}
+{"type": "stream_event", "event": {"type": "content_block_start", "index": 0, "content_block": {"type": "text", "text": ""}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "this"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": " is mac"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "os"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": " laun"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "chd, the system process"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": " that starts and manages all"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": " other process"}}}
+{"type": "stream_event", "event": {"type": "content_block_delta", "index": 0, "delta": {"type": "text_delta", "text": "es."}}}
+{"type": "assistant", "message": {"role": "assistant", "content": [{"type": "text", "text": "this is macos launchd, the system process that starts and manages all other processes."}]}}
+{"type": "stream_event", "event": {"type": "content_block_stop", "index": 0}}
+{"type": "stream_event", "event": {"type": "message_delta", "delta": {"stop_reason": "end_turn"}}}
+{"type": "stream_event", "event": {"type": "message_stop"}}
+{"type": "result", "subtype": "success", "is_error": false, "result": "this is macos launchd, the system process that starts and manages all other processes.", "num_turns": 1}
