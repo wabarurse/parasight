@@ -99,6 +99,11 @@ impl Tracker {
         self.inner.writer.load(Ordering::Relaxed)
     }
 
+    /// A copy of the last-interacted stamps as they are now.
+    pub fn state(&self) -> State {
+        lock(&self.inner.state).clone()
+    }
+
     pub fn tracking_since(&self) -> u64 {
         lock(&self.inner.state).tracking_since
     }

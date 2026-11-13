@@ -315,12 +315,28 @@ fn detail(buf: &mut Buffer, r: Rect, app: &App) -> (usize, usize, usize) {
     if ih == 0 || iw < 20 || name.is_empty() {
         return table_state;
     }
+    // the one-line answer to K, when this item has been asked about
+    let ask = app.ask_line();
+    let ask_h = usize::from(ask.is_some() && ih >= 6);
     let info_h = if ih >= 12 { 2 } else { 0 };
     let gh = if ih < 9 { 0 } else { ((ih as i32 - 20) / 3).clamp(1, 6) as usize };
+    // the answer's line comes out of the table, not the graphs
+    let ih = ih - ask_h;
     let graphs_h = if gh > 0 { 3 * (1 + gh) } else { 0 };
     let gap = usize::from(info_h > 0 && ih >= 16);
     let table_h = ih.saturating_sub(graphs_h + 1 + info_h + gap);
     let mut y = r.y + 1;
+    if let Some((label, line)) = ask.filter(|_| ask_h > 0) {
+        use crate::ask::Line;
+        let (text, style) = match line {
+            Line::Waiting(t) => (t.as_str(), fg(VERY_DIM)),
+            Line::Answer(t) => (t.as_str(), fg(DIM)),
+            Line::Failed(t) => (t.as_str(), fg(AMBER)),
+        };
+        // one line only: `put` cuts an overlong answer with an ellipsis
+        put(buf, x, y, iw, &[s(format!(" {label}{text}"), style)], None);
+        y += 1;
+    }
 
     // three stacked graphs: cpu, memory, network
     if gh > 0 {
@@ -482,7 +498,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
         ];
     }
     let mut hints = if app.focus == Focus::Table {
-        keys(&[("j/k", "move"), ("h", "back to list"), ("gg/G", "top/end"), ("^d/^u", "page"), ("1/2/3", "metric"), ("dd", "kill process"), ("q", "quit")])
+        keys(&[("j/k", "move"), ("h", "back to list"), ("gg/G", "top/end"), ("^d/^u", "page"), ("1/2/3", "metric"), ("dd", "kill process"), ("K", "what is this"), ("q", "quit")])
     } else {
         keys(&[
             ("j/k", "move"),
@@ -493,6 +509,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
             ("/", "filter"),
             ("dd", "kill"),
             ("c", "clean"),
+            ("K", "what is this"),
             ("q", "quit"),
         ])
     };

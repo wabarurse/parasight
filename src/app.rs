@@ -1,6 +1,7 @@
 //! Ui state and key handling. The keys follow vim; the README lists them.
 
 use crate::actions::{self, Outcome, Target, TargetKind};
+use crate::ask::{self, Ask, Line};
 use crate::cleanup_view::{self, CleanView};
 use crate::collect::Collector;
 use crate::model::*;
@@ -57,6 +58,9 @@ pub struct App {
     pub flash: String,
     pub confirm: Option<Confirm>,
     pub clean: Option<CleanView>,
+    pub ask: Ask,
+    /// item key -> the ask cache key of what was last asked about it (the item, or one process)
+    ask_keys: std::collections::HashMap<String, (String, String)>,
     pub quit: bool,
     /// Until the first key the selection rides on the top item, whatever that becomes.
     pub moved: bool,
@@ -94,6 +98,8 @@ impl App {
             flash,
             confirm: None,
             clean: None,
+            ask: Ask::default(),
+            ask_keys: std::collections::HashMap::new(),
             quit: false,
             moved: false,
             list_h: 20,
@@ -401,6 +407,7 @@ impl App {
             }
             KeyCode::Char('q') => self.quit = true,
             KeyCode::Char('c') => cleanup_view::open(self),
+            KeyCode::Char('K') => self.ask_selected(ask::QUESTION),
             KeyCode::Char('1') => self.metric = Metric::Cpu,
             KeyCode::Char('2') => self.metric = Metric::Mem,
             KeyCode::Char('3') => self.metric = Metric::Net,
@@ -476,6 +483,51 @@ impl App {
         }
     }
 
+    /// `K`: ask Claude Code what the selected item (or, in the process table, the selected
+    /// process) is. Nothing is sent before this; what is sent has been through the redactor.
+    pub fn ask_selected(&mut self, question: &str) {
+        let Some(it) = self.selected_item() else {
+            self.flash = "move onto an app or process first to ask what it is".into();
+            return;
+        };
+        let world = crate::inspect::World::from_collector(&self.col, Some(self.tracker.state()));
+        let project = crate::inspect::project_name(&world.cwd_of(it), &world.home);
+        let pid = (self.focus == Focus::Table).then(|| self.table_procs().get(self.tsel).map(|p| p.pid)).flatten().filter(|&p| p != 0);
+        let main = it.procs.first().and_then(|r| self.col.procs().get(&r.pid));
+        // a key that survives restarts of the same thing: what it is, not which pid it has
+        let (cache_key, label, details) = match pid.and_then(|pid| Some((pid, world.process_details(it, pid, project.clone())?))) {
+            Some((pid, details)) => {
+                let p = self.col.procs().get(&pid);
+                let key = format!("proc\0{}\0{}", p.map(|p| p.exe.as_str()).unwrap_or(""), p.map(|p| p.cmd.join(" ")).unwrap_or_default());
+                let name = self.table_procs().get(self.tsel).map(|r| crate::util::clip(&r.name, 24)).unwrap_or_default();
+                (key, format!("{name}: "), details)
+            }
+            None => {
+                let key = match &it.kind {
+                    ItemKind::Dev { .. } => format!("dev\0{}\0{}\0{}", main.map(|p| p.exe.as_str()).unwrap_or(""), main.map(|p| p.cmd.join(" ")).unwrap_or_default(), main.map(|p| p.cwd.as_str()).unwrap_or("")),
+                    ItemKind::App { bundle } => format!("app\0{bundle}"),
+                    ItemKind::Container { .. } | ItemKind::System => format!("{}\0{}\0{}", it.group.name(), it.name, it.path),
+                };
+                (key, String::new(), world.item_details(it, project))
+            }
+        };
+        let item_key = it.key.clone();
+        self.ask.ask(&cache_key, ask::prompt_for(question, &details));
+        self.ask_keys.insert(item_key, (cache_key, label));
+    }
+
+    /// The line to show under the selected item's title, if it has been asked about.
+    pub fn ask_line(&self) -> Option<(String, &Line)> {
+        let (cache_key, label) = self.ask_keys.get(&self.sel)?;
+        self.ask.line(cache_key).map(|l| (label.clone(), l))
+    }
+
+    /// For snapshots: show a ready-made answer on the selected item without asking anyone.
+    pub fn set_canned_answer(&mut self, text: &str) {
+        self.ask.set("canned", Line::Answer(text.to_string()));
+        self.ask_keys.insert(self.sel.clone(), ("canned".into(), String::new()));
+    }
+
     /// The pending multi-key prefix, shown at the far right like vim's showcmd.
     pub fn showcmd(&self) -> String {
         self.pending.map(String::from).unwrap_or_default()
@@ -484,6 +536,11 @@ impl App {
     /// True while a close or kill is still being carried out.
     pub fn busy(&self) -> bool {
         self.in_flight > 0
+    }
+
+    /// True while something in the background will want a redraw soon.
+    pub fn waiting(&self) -> bool {
+        self.in_flight > 0 || self.ask.busy()
     }
 
     pub fn start(&mut self, targets: Vec<(String, Target)>) {
