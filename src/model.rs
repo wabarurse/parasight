@@ -109,7 +109,7 @@ pub struct Item {
     pub key: String,
     pub name: String,
     pub group: Group,
-    /// A short description of the item, shown with its path in the detail pane.
+    /// The dim line next to the name in the detail pane.
     pub path: String,
     pub kind: ItemKind,
     pub procs: Vec<ProcRow>,
