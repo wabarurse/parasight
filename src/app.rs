@@ -1,4 +1,4 @@
-//! Ui state and key handling. The mockup's `vim()` function is the spec for the keys.
+//! Ui state and key handling. The keys follow vim; the README lists them.
 
 use crate::actions::{self, Outcome, Target, TargetKind};
 use crate::collect::Collector;

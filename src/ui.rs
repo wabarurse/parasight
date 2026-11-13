@@ -1,5 +1,5 @@
 //! Drawing. Everything is written straight into the ratatui buffer, one line of styled
-//! segments at a time, to match the mockup cell for cell. All text is lowercased here
+//! segments at a time, so every cell is placed by hand. All text is lowercased here
 //! (`s`), except key hints (`raw`).
 
 use crate::app::{App, Focus, Row, RowKind};
