@@ -222,10 +222,10 @@ fn metric_value(m: Metric, cpu: f32, memory: u64, rx: f64, tx: f64) -> String {
 
 fn strip(buf: &mut Buffer, r: Rect, app: &App) {
     let m = &app.col.machine;
-    let (_, h, mi, _) = native::local_time(native::now());
-    frame(buf, r, BORDER, &[s(" parasight ", bold(BRIGHT))], &[s(format!(" {h:02}:{mi:02} "), fg(DIM))]);
+    frame(buf, r, BORDER, &[], &[]);
     let frac = if m.mem_total > 0 { m.mem_used as f64 / m.mem_total as f64 } else { 0.0 };
-    let filled = (frac.clamp(0.0, 1.0) * 16.0).round() as usize;
+    let bar = if r.width >= 90 { 16 } else { 6 };
+    let filled = (frac.clamp(0.0, 1.0) * bar as f64).round() as usize;
     let gb = |b: u64| b as f64 / 1_073_741_824.0;
     let gap = if r.width >= 100 { "     " } else { "  " };
     let line = [
@@ -234,9 +234,8 @@ fn strip(buf: &mut Buffer, r: Rect, app: &App) {
         s(format!(" {}", rp(&pct(m.cpu), 6)), fg(TEXT)),
         s(format!("{gap}mem "), bold(BRIGHT)),
         raw("█".repeat(filled), fg(if frac > 0.85 { AMBER } else { GREEN })),
-        raw("░".repeat(16 - filled), fg(VERY_DIM)),
-        s(format!(" {}%", (frac * 100.0).round() as u32), fg(TEXT)),
-        s(if r.width >= 90 { format!("  {:.1}/{:.0}g", gb(m.mem_used), gb(m.mem_total)) } else { String::new() }, fg(TEXT)),
+        raw("░".repeat(bar - filled), fg(VERY_DIM)),
+        s(format!(" {:.1} gb / {:.0} gb", gb(m.mem_used), gb(m.mem_total)), fg(TEXT)),
         s(format!("{gap}net "), bold(BRIGHT)),
         s(format!("↓{}/s ", rate(m.rx)), fg(TEAL)),
         s(format!("↑{}/s", rate(m.tx)), fg(LAVENDER)),
@@ -274,7 +273,7 @@ fn list(buf: &mut Buffer, r: Rect, app: &mut App, rows: &[Row], sel: usize) {
         let line = match &row.kind {
             RowKind::Group(g) => {
                 let t = snap.totals(*g);
-                let arrow = if app.open.contains(g) { "▾ " } else { "▸ " };
+                let arrow = if app.open.contains(g) || !app.filter.is_empty() { "▾ " } else { "▸ " };
                 [s(lp(&format!("{arrow}{}", g.name()), name_w), bold(BRIGHT)), s(rp(&metric_value(app.metric, t.cpu, t.mem, t.rx, t.tx), 10), bold(BRIGHT)), raw(" ", Style::new())]
             }
             RowKind::Item(idx) => {

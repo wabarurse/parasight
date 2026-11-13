@@ -75,7 +75,8 @@ impl App {
         App {
             col,
             metric: Metric::Cpu,
-            open: Group::ALL.into_iter().collect(),
+            // system starts folded: it is mostly noise. zR or l opens it.
+            open: Group::ALL.into_iter().filter(|g| *g != Group::System).collect(),
             sel: String::new(),
             off: 0,
             focus: Focus::List,
@@ -113,7 +114,8 @@ impl App {
                 continue;
             }
             rows.push(Row { id: g.id(), kind: RowKind::Group(g) });
-            if !self.open.contains(&g) {
+            // a filter looks inside folded groups too, so a system process can still be found
+            if q.is_empty() && !self.open.contains(&g) {
                 continue;
             }
             idx.sort_by(|&a, &b| items[b].metric(self.metric).total_cmp(&items[a].metric(self.metric)).then_with(|| items[a].name.cmp(&items[b].name)));
