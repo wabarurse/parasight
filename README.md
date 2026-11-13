@@ -37,6 +37,8 @@ Other ways to run it:
 | `parasight --snapshot [--width W --height H]` | Gathers data for a few seconds, prints one frame as text and exits. Add `--select NAME`, `--metric mem`, `--filter TEXT` or `--color`. |
 | `parasight --list` | Prints the groups and items as plain text. |
 | `parasight --no-docker` | Does not look for containers. |
+| `parasight --snapshot --view cleanup` | The same, with the clean-up popup open. |
+| `parasight track` | Records what you interact with, without the UI (see [Clean-up](#clean-up)). |
 
 ## Keys
 
@@ -51,6 +53,7 @@ Other ways to run it:
 | `1` `2` `3` | Sort and chart by cpu / memory / network |
 | `/` | Filter by app or process name as you type. Enter keeps it, Esc clears it |
 | `dd` | Kill the selected app, or the selected process when you are in the process table. Asks `y / n` first |
+| `c` | Open the clean-up view |
 | `q` | Quit |
 
 A pending prefix (`g`, `z`, `d`) shows at the right of the bottom line. The mouse also works:
@@ -111,6 +114,73 @@ ollama = "dev"          # process or app name -> apps | dev | system
 The screen refreshes every 2 seconds and keeps 2 minutes of history. Nothing blocks the
 interface: every subprocess and socket runs on a background thread.
 
+## Clean-up
+
+Press `c` for a short list of things that are probably safe to close. Each row has a
+checkbox, the reason in plain words, and what closing it would save (cpu, memory, network).
+
+- **recommended** rows are checked for you. Only high-confidence candidates land here.
+- **to review** rows are not checked. Tick what you want closed.
+
+`j`/`k` move, `space` or `x` checks and unchecks, `a` toggles all, `r` rescans, `enter` asks
+`y / n` with the totals, `esc` closes. Nothing is closed without that confirmation, and
+closing works exactly like `dd` above (polite first, a separate question before any force kill).
+
+### What counts as "used"
+
+Staging depends on when you last *interacted* with something, not on whether it was in front.
+
+- **Apps.** Once a second parasight reads the frontmost app and the seconds since the last
+  key press, click or scroll (mouse movement is ignored). When new input has arrived, the
+  frontmost app is stamped. An app left in front overnight is not being used. Neither read
+  needs a permission.
+- **Dev items.** The newer of: the last time you typed into its terminal (the access time of
+  its tty device) and the last time it sent or received bytes. CPU use alone is not
+  interaction. A tool started by an app (a language server under your editor) also counts as
+  used when that app is.
+- **Containers.** Any cpu or network activity.
+
+Stamps are kept in `~/.local/state/parasight/last-interacted.json`. They are only collected
+while a sampler runs, so there are two modes:
+
+- By default, sampling happens while parasight is open.
+- `parasight track` runs the sampler alone, with no UI. `parasight track --install` adds a
+  LaunchAgent that starts it at login (`--uninstall` removes it). With this, clean-up has
+  real history the moment you open it. It is never installed for you.
+
+If tracking stops for more than three minutes while the Mac stays on, earlier stamps cannot
+prove that nothing happened since, so history starts again. The reason always names the
+signal: "no input for 2d", "no input seen since tracking began (45m)", "last opened 3d ago"
+(Spotlight's date, a weak fallback).
+
+### Rules
+
+| Item | Condition | Result |
+|---|---|---|
+| dev | orphaned (parent gone, not a launchd job), unused for 10 min | recommended |
+| dev | orphaned, but used more recently, not watched for 10 min yet, or busy (5% cpu or more) | to review |
+| dev | a server with the same command and directory as a newer one | recommended (the older one) |
+| dev | has a parent, no terminal input or network for 2 h | to review |
+| dev | launchd job or known background service (postgres, redis, tmux, ollama, an ssh tunnel, a bazel or gradle daemon…), unused 24 h | to review |
+| container | no cpu or network for 6 h | to review |
+| app | no input for 24 h, not in the Dock | recommended |
+| app | no input for 24 h, pinned in the Dock | to review |
+| app | no input for 2 h | to review |
+| app | Spotlight says last opened 3+ days ago, no input seen yet | to review; recommended only once 2 h have been watched and it is not pinned |
+| app | menu-bar or agent app, or holding an audio / prevent-sleep assertion | to review at most |
+
+Rows are ordered by confidence, then not-pinned before pinned, then memory.
+
+**Never offered:** parasight, its shell and its terminal app (and under tmux, the terminal
+hosting it), the frontmost app, Finder, Dock, loginwindow, anything in `system`, and anything
+you list in `rules.toml`:
+
+```toml
+keep = ["spotify", "postgres"]   # item names, without the port
+```
+
+The design notes are in [docs/cleanup-design.md](docs/cleanup-design.md).
+
 ## Known limits
 
 - **macOS only.**
@@ -125,3 +195,8 @@ interface: every subprocess and socket runs on a background thread.
   as `webkit`, not under Safari.
 - **Helper cost.** parasight itself uses about half a percent of one core. The `nettop` it
   keeps running uses about 1.5%, and the `ps` poll about 0.4%.
+- **Clean-up history** exists only for the time a sampler was running. Input is credited to
+  the frontmost app, so scrolling a background window is credited to the wrong one. Things
+  started on purpose with `nohup` look orphaned; add them to `keep`.
+- **tty access time** is shared by everything in one terminal tab. It works per pane under
+  tmux.
