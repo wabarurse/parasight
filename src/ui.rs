@@ -476,7 +476,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
     {
         use crate::ask::Line;
         let (text, style) = match line {
-            Line::Waiting(t) => (if t.trim_matches('…').is_empty() { "asking claude code" } else { t.as_str() }, fg(DIM)),
+            Line::Waiting(t) => (if t.trim_matches('…').is_empty() { "" } else { t.as_str() }, fg(DIM)),
             Line::Answer(t) => (t.as_str(), fg(BRIGHT)),
             Line::Failed(t) => (t.as_str(), fg(AMBER)),
         };
