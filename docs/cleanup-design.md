@@ -1,6 +1,6 @@
 # parasight clean-up: technical design
 
-Status: draft. The build is in progress; thresholds here are starting values.
+Status: built. Where the build differs from this design, the "As built" section at the end wins.
 
 ## Goal
 
@@ -228,3 +228,46 @@ Integration tests (real processes the test spawns itself, never the user's):
   VM), so "frees" for a container is an estimate.
 - **Unsaved work.** Quit is polite, so apps can prompt. An app that blocks on
   a save dialog is reported as "still running".
+
+## As built
+
+Checked on a real machine during the build; these replace the matching
+points above.
+
+**Signals**
+
+- `lsappinfo` exposes no last-activation time, so the input sampler is the
+  only real "last interacted" signal for apps.
+- Spotlight's last-used date is not only the launch date, and it is unclear
+  what updates it. It is shown in the reason but never enough to recommend
+  an app: that needs 2 h of tracking with no input, and the app not pinned.
+- `nettop` only counts open sockets, so "never used the network" cannot be
+  inferred. An orphan must be watched for 10 min before it is recommended.
+- tty access time updates on input, not output, and per pane under tmux. It
+  is ignored for orphans (the device name may have been reused) and only
+  counts if newer than the process.
+- A dev tool started by an app inherits that app's input stamp.
+- A tracking gap over 3 min while the Mac stays on restarts history.
+- The "has controlling tty" and "lifetime CPU ÷ age" inputs are not used.
+
+**Rules**
+
+- Zombies are low, not high: a signal cannot remove one and it holds no
+  memory.
+- "Uninterruptible for 5 min" is not implemented; macOS does not expose it.
+- An orphan using 5% CPU or more is capped at "to review".
+- Daemons by design (tmux, ollama, limactl, an ssh mux, bazel and gradle
+  daemons) are treated like launchd services.
+- "Duplicate" requires both items to listen on a port. Without that, two
+  workers of one program were wrongly flagged.
+
+**Actions and UI**
+
+- Force kill is offered for dev processes only, never for apps.
+- Containers are stopped with the docker CLI; listing and stats use the
+  socket.
+- `r` rescans. The last line of the popup spells out the selected row's
+  reason when the column cut it.
+
+**Not yet exercised on real targets**: quitting a GUI app, stopping a
+container, the force-kill follow-up, and `parasight track --install`.
