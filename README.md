@@ -27,28 +27,52 @@ Needs macOS.
 
 ```sh
 curl -fsSL https://raw.githubusercontent.com/wabarurse/parasight/main/install.sh | sh
-parasight
 ```
 
-The script downloads the latest release for your Mac, checks its sha256 and puts the binary
-in `~/.local/bin` (set `PARASIGHT_INSTALL_DIR` to change that). If there is no release it
-can reach, it builds from source with cargo instead. Run it again to update.
+Then open a new terminal and run `parasight`. Run the same command again to update.
 
-While the repository is private, plain `curl` cannot read it. Fetch the script through the
-`gh` cli instead; the script then uses `gh` for the download too:
+The script downloads the latest release for your Mac, checks its sha256, installs it to
+`~/.parasight/bin` and adds that folder to your PATH in your shell profile (`~/.zshrc`,
+`~/.bash_profile` or fish's `config.fish`). If there is no release yet, it builds from
+source with cargo, which needs [Rust](https://rustup.rs).
+
+While the repository is private, plain `curl` gets a 404. Use the `gh` cli instead, signed
+in with `gh auth login`:
 
 ```sh
 gh api repos/wabarurse/parasight/contents/install.sh -H "Accept: application/vnd.github.raw" | sh
 ```
 
-From a checkout, with a Rust toolchain:
+From a checkout, with Rust installed: `cargo build --release && ./target/release/parasight`.
+
+### Where things live
+
+Everything is in `~/.parasight` (set `PARASIGHT_HOME` to move it):
+
+| Path | What |
+|---|---|
+| `~/.parasight/bin/parasight` | the program |
+| `~/.parasight/state/` | clean-up's record of when you last used each app |
+| `~/.parasight/rules.toml` | your overrides, if you create it |
+
+`parasight track --install` also adds a login item in `~/Library/LaunchAgents/`, because
+macOS only looks there. Files from earlier versions in `~/.local/state/parasight` and
+`~/.config/parasight` are moved into `~/.parasight` the first time it runs.
+
+### Uninstall
 
 ```sh
-cargo install --path .     # or: cargo build --release && ./target/release/parasight
+parasight track --uninstall   # only if you installed the login item
+rm -rf ~/.parasight
 ```
 
-Releases are built by `.github/workflows/release.yml` when a version tag is pushed
-(`git tag v0.1.0 && git push origin v0.1.0`).
+Then delete the two lines under `# parasight` in your shell profile.
+
+### Releases
+
+`.github/workflows/release.yml` builds both Mac targets when a version tag is pushed
+(`git tag v0.1.0 && git push origin v0.1.0`). Until the first one, the installer builds from
+source.
 
 Other ways to run it:
 
@@ -114,7 +138,7 @@ Dev items are named from the command, not the binary: `next dev  :3000`, `postgr
 started, and a listening port is added when there is one. The path line shows the working
 directory and the command.
 
-To override a decision, create `~/.config/parasight/rules.toml`:
+To override a decision, create `~/.parasight/rules.toml`:
 
 ```toml
 [pin]
@@ -163,7 +187,7 @@ Staging depends on when you last *interacted* with something, not on whether it 
   used when that app is.
 - **Containers.** Any cpu or network activity.
 
-Stamps are kept in `~/.local/state/parasight/last-interacted.json`. They are only collected
+Stamps are kept in `~/.parasight/state/last-interacted.json`. They are only collected
 while a sampler runs, so there are two modes:
 
 - By default, sampling happens while parasight is open.

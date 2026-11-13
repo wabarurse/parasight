@@ -73,7 +73,7 @@ not count.
 interaction: a watcher spinning by itself is not being used.
 
 **Keeping history.** Timestamps are saved to
-`~/.local/state/parasight/last-interacted.json` so they survive restarts.
+`~/.parasight/state/last-interacted.json` so they survive restarts.
 They are only collected while a sampler runs, so there are two modes:
 
 - default: sampling happens while parasight is open
@@ -121,7 +121,7 @@ highest confidence.
 
 **Never offered**: parasight, its parent shell and terminal app, the frontmost
 app, Finder, Dock, loginwindow, anything in `system`, and anything the user
-has listed under `keep` in `~/.config/parasight/rules.toml`.
+has listed under `keep` in `~/.parasight/rules.toml`.
 
 ## Ranking and preselection
 

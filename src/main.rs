@@ -295,6 +295,7 @@ fn main() {
         println!("parasight {}", env!("CARGO_PKG_VERSION"));
         return;
     }
+    native::move_old_files();
     if argv.first().map(String::as_str) == Some("track") {
         std::process::exit(track::run(&argv[1..]));
     }

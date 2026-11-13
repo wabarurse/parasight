@@ -88,7 +88,7 @@ impl State {
     }
 
     pub fn default_path() -> PathBuf {
-        PathBuf::from(crate::native::home()).join(".local/state/parasight/last-interacted.json")
+        crate::native::parasight_home().join("state/last-interacted.json")
     }
 
     /// Called once after loading. If tracking was not running for a while, what was recorded

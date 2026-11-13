@@ -1,4 +1,4 @@
-//! Optional user overrides from `~/.config/parasight/rules.toml`.
+//! Optional user overrides from `~/.parasight/rules.toml`.
 //!
 //! ```toml
 //! # never offer these in the clean-up view (item names, case-insensitive, port not needed)
@@ -53,9 +53,7 @@ impl Rules {
     }
 
     pub fn load() -> Rules {
-        let Some(home) = std::env::var_os("HOME") else { return Rules::default() };
-        let path = std::path::Path::new(&home).join(".config/parasight/rules.toml");
-        match std::fs::read_to_string(path) {
+        match std::fs::read_to_string(crate::native::parasight_home().join("rules.toml")) {
             Ok(text) => Rules::parse(&text),
             Err(_) => Rules::default(),
         }

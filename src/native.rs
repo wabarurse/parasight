@@ -55,6 +55,42 @@ pub fn home() -> String {
     std::env::var("HOME").unwrap_or_default()
 }
 
+/// Everything parasight keeps lives here: `bin/`, `state/` and `rules.toml`.
+/// `PARASIGHT_HOME` moves it; the default is `~/.parasight`.
+pub fn parasight_home() -> std::path::PathBuf {
+    match std::env::var_os("PARASIGHT_HOME").filter(|h| !h.is_empty()) {
+        Some(h) => h.into(),
+        None => std::path::PathBuf::from(home()).join(".parasight"),
+    }
+}
+
+/// Earlier builds kept state in `~/.local/state/parasight` and settings in
+/// `~/.config/parasight`. Move them into `parasight_home()` once, never overwriting.
+pub fn move_old_files() {
+    let home = std::path::PathBuf::from(home());
+    let new = parasight_home();
+    let moves = [
+        (home.join(".local/state/parasight/last-interacted.json"), new.join("state/last-interacted.json")),
+        (home.join(".config/parasight/rules.toml"), new.join("rules.toml")),
+    ];
+    for (from, to) in moves {
+        if from.is_file() && !to.exists() && to.parent().is_some_and(|d| std::fs::create_dir_all(d).is_ok()) {
+            let _ = std::fs::rename(&from, &to);
+        }
+    }
+    // the old folders go only if nothing else is left in them
+    for dir in [home.join(".local/state/parasight"), home.join(".config/parasight")] {
+        if let Ok(entries) = std::fs::read_dir(&dir) {
+            for e in entries.flatten() {
+                if e.file_name() == "lock" {
+                    let _ = std::fs::remove_file(e.path());
+                }
+            }
+        }
+        let _ = std::fs::remove_dir(&dir);
+    }
+}
+
 static QUIT: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
 
 extern "C" fn on_quit_signal(_: libc::c_int) {
