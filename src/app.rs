@@ -61,6 +61,8 @@ pub struct App {
     pub ask: Ask,
     /// item key -> the ask cache key of what was last asked about it (the item, or one process)
     ask_keys: std::collections::HashMap<String, (String, String)>,
+    /// True from `K` until the next key: the bottom bar shows the answer meanwhile.
+    pub ask_shown: bool,
     pub quit: bool,
     /// Until the first key the selection rides on the top item, whatever that becomes.
     pub moved: bool,
@@ -100,6 +102,7 @@ impl App {
             clean: None,
             ask: Ask::default(),
             ask_keys: std::collections::HashMap::new(),
+            ask_shown: false,
             quit: false,
             moved: false,
             list_h: 20,
@@ -323,6 +326,7 @@ impl App {
 
     pub fn on_key(&mut self, key: KeyEvent) {
         self.moved = true;
+        self.ask_shown = false;
         let ctrl = key.modifiers.contains(KeyModifiers::CONTROL);
         if ctrl && key.code == KeyCode::Char('c') {
             self.quit = true;
@@ -514,9 +518,10 @@ impl App {
         let item_key = it.key.clone();
         self.ask.ask(&cache_key, ask::prompt_for(question, &details));
         self.ask_keys.insert(item_key, (cache_key, label));
+        self.ask_shown = true;
     }
 
-    /// The line to show under the selected item's title, if it has been asked about.
+    /// The answer for the selected item, if it has been asked about. The bottom bar shows it.
     pub fn ask_line(&self) -> Option<(String, &Line)> {
         let (cache_key, label) = self.ask_keys.get(&self.sel)?;
         self.ask.line(cache_key).map(|l| (label.clone(), l))
@@ -526,6 +531,7 @@ impl App {
     pub fn set_canned_answer(&mut self, text: &str) {
         self.ask.set("canned", Line::Answer(text.to_string()));
         self.ask_keys.insert(self.sel.clone(), ("canned".into(), String::new()));
+        self.ask_shown = true;
     }
 
     /// The pending multi-key prefix, shown at the far right like vim's showcmd.

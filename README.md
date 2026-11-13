@@ -186,9 +186,10 @@ The design notes are in [docs/cleanup-design.md](docs/cleanup-design.md).
 
 ## What is this?
 
-Press `K` on an app, a dev item or (in the process table) a single process, and a dim line
-under the title says what it is: "it's a google chrome browser instance", "this is your api
-server for the shop app". The answer comes from your own Claude Code, run headless.
+Press `K` on an app, a dev item or (in the process table) a single process, and the bottom
+bar says what it is: "it's a google chrome browser instance", "this is your api server for
+the shop app". It stays there until the next key. The answer comes from your own Claude
+Code, run headless.
 
 - **Only on `K`.** Nothing is asked when you merely select something. Answers are kept for
   the session, so asking again or coming back to an item shows the line at once.

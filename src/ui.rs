@@ -315,28 +315,12 @@ fn detail(buf: &mut Buffer, r: Rect, app: &App) -> (usize, usize, usize) {
     if ih == 0 || iw < 20 || name.is_empty() {
         return table_state;
     }
-    // the one-line answer to K, when this item has been asked about
-    let ask = app.ask_line();
-    let ask_h = usize::from(ask.is_some() && ih >= 6);
     let info_h = if ih >= 12 { 2 } else { 0 };
     let gh = if ih < 9 { 0 } else { ((ih as i32 - 20) / 3).clamp(1, 6) as usize };
-    // the answer's line comes out of the table, not the graphs
-    let ih = ih - ask_h;
     let graphs_h = if gh > 0 { 3 * (1 + gh) } else { 0 };
     let gap = usize::from(info_h > 0 && ih >= 16);
     let table_h = ih.saturating_sub(graphs_h + 1 + info_h + gap);
     let mut y = r.y + 1;
-    if let Some((label, line)) = ask.filter(|_| ask_h > 0) {
-        use crate::ask::Line;
-        let (text, style) = match line {
-            Line::Waiting(t) => (t.as_str(), fg(VERY_DIM)),
-            Line::Answer(t) => (t.as_str(), fg(DIM)),
-            Line::Failed(t) => (t.as_str(), fg(AMBER)),
-        };
-        // one line only: `put` cuts an overlong answer with an ellipsis
-        put(buf, x, y, iw, &[s(format!(" {label}{text}"), style)], None);
-        y += 1;
-    }
 
     // three stacked graphs: cpu, memory, network
     if gh > 0 {
@@ -485,6 +469,19 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
     }
     if let Some(f) = crate::cleanup_view::footer(app) {
         return f;
+    }
+    // the answer to K stays here until the next key
+    if app.ask_shown
+        && let Some((label, line)) = app.ask_line()
+    {
+        use crate::ask::Line;
+        let (text, style) = match line {
+            Line::Waiting(t) if t.trim_matches('…').is_empty() => ("asking claude code…", fg(DIM)),
+            Line::Waiting(t) => (t.as_str(), fg(DIM)),
+            Line::Answer(t) => (t.as_str(), fg(BRIGHT)),
+            Line::Failed(t) => (t.as_str(), fg(AMBER)),
+        };
+        return vec![raw(" K ", bold(TEAL)), s(format!("{label}{text}"), style)];
     }
     if !app.flash.is_empty() && !app.filtering {
         return vec![s(format!(" {}", app.flash), fg(DIM))];
