@@ -170,8 +170,7 @@ those totals.
  j/k move  space check / uncheck  a all  enter clean  esc close
 ```
 
-The interactive version is section B of `mockup-pick.html` (variant
-'Clean-up'). The reason always names the signal used, e.g. "no input for 2d",
+The reason always names the signal used, e.g. "no input for 2d",
 "no input seen since tracking began (45m)" or "last opened 3d ago".
 
 ## Tests
