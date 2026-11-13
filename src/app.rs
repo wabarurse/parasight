@@ -1,8 +1,10 @@
 //! Ui state and key handling. The keys follow vim; the README lists them.
 
 use crate::actions::{self, Outcome, Target, TargetKind};
+use crate::cleanup_view::{self, CleanView};
 use crate::collect::Collector;
 use crate::model::*;
+use crate::tracker::Tracker;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers, MouseButton, MouseEvent, MouseEventKind};
 use std::collections::HashSet;
 use std::sync::mpsc::{Receiver, Sender, channel};
@@ -41,6 +43,7 @@ pub struct ActionResult {
 
 pub struct App {
     pub col: Collector,
+    pub tracker: Tracker,
     pub metric: Metric,
     pub open: HashSet<Group>,
     pub sel: String,
@@ -53,6 +56,7 @@ pub struct App {
     pub pending: Option<char>,
     pub flash: String,
     pub confirm: Option<Confirm>,
+    pub clean: Option<CleanView>,
     pub quit: bool,
     /// Until the first key the selection rides on the top item, whatever that becomes.
     pub moved: bool,
@@ -69,11 +73,13 @@ pub struct App {
 impl App {
     pub fn new(
         col: Collector,
+        tracker: Tracker,
     ) -> App {
         let (tx, rx) = channel();
         let flash = col.rules.warning.clone().unwrap_or_default();
         App {
             col,
+            tracker,
             metric: Metric::Cpu,
             // system starts folded: it is mostly noise. zR or l opens it.
             open: Group::ALL.into_iter().filter(|g| *g != Group::System).collect(),
@@ -87,6 +93,7 @@ impl App {
             pending: None,
             flash,
             confirm: None,
+            clean: None,
             quit: false,
             moved: false,
             list_h: 20,
@@ -216,6 +223,7 @@ impl App {
     fn start_actions(&mut self, targets: Vec<(String, Target)>, force: bool) {
         for (key, target) in targets {
             self.in_flight += 1;
+            cleanup_view::on_start(self, &key);
             let tx = self.tx.clone();
             std::thread::spawn(move || {
                 let outcome = if force { actions::force(&target) } else { actions::close(&target) };
@@ -230,6 +238,7 @@ impl App {
         while let Ok(r) = self.rx.try_recv() {
             changed = true;
             self.in_flight = self.in_flight.saturating_sub(1);
+            cleanup_view::on_result(self, &r);
             self.batch.push(r);
         }
         if changed && self.in_flight == 0 {
@@ -246,6 +255,8 @@ impl App {
         let names = |v: &[&ActionResult]| v.iter().map(|r| r.target.name.as_str()).collect::<Vec<_>>().join(", ");
         let mut parts = Vec::new();
         let closed_msg = (!closed.is_empty()).then(|| format!("closed {}", names(&closed)));
+        let closed_keys: Vec<&str> = closed.iter().map(|r| r.key.as_str()).collect();
+        let closed_msg = cleanup_view::on_closed(self, &closed_keys).or(closed_msg);
         parts.extend(closed_msg);
         if !refused.is_empty() {
             let why = match &refused[0].outcome {
@@ -320,6 +331,10 @@ impl App {
             }
             return;
         }
+        if self.clean.is_some() {
+            cleanup_view::on_key(self, key);
+            return;
+        }
         if self.filtering {
             match key.code {
                 KeyCode::Enter => self.filtering = false,
@@ -385,6 +400,7 @@ impl App {
                 }
             }
             KeyCode::Char('q') => self.quit = true,
+            KeyCode::Char('c') => cleanup_view::open(self),
             KeyCode::Char('1') => self.metric = Metric::Cpu,
             KeyCode::Char('2') => self.metric = Metric::Mem,
             KeyCode::Char('3') => self.metric = Metric::Net,
@@ -428,6 +444,10 @@ impl App {
         if self.confirm.is_some() || self.filtering {
             return;
         }
+        if self.clean.is_some() {
+            cleanup_view::on_mouse(self, m);
+            return;
+        }
         let (x, y, w, h) = self.list_area;
         let inside = m.column >= x && m.column < x + w && m.row >= y && m.row < y + h;
         match m.kind {
@@ -466,4 +486,7 @@ impl App {
         self.in_flight > 0
     }
 
+    pub fn start(&mut self, targets: Vec<(String, Target)>) {
+        self.start_actions(targets, false);
+    }
 }

@@ -301,6 +301,9 @@ impl Collector {
         self.ticks += 1;
     }
 
+    pub fn procs(&self) -> &HashMap<u32, ProcInfo> {
+        &self.procs
+    }
 
     /// How to close an item (or one process of it).
     pub fn target(&self, key: &str) -> Option<Target> {

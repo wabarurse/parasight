@@ -23,6 +23,10 @@ pub fn alive(pid: u32, start_time: u64) -> bool {
     }
 }
 
+pub fn now() -> u64 {
+    std::time::SystemTime::now().duration_since(std::time::UNIX_EPOCH).map(|d| d.as_secs()).unwrap_or(0)
+}
+
 /// (weekday 0 = sunday, hour, minute, second) in local time.
 pub fn local_time(epoch: u64) -> (u32, u32, u32, u32) {
     let t = epoch as libc::time_t;

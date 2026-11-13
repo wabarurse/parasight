@@ -1,6 +1,9 @@
 //! Optional user overrides from `~/.config/parasight/rules.toml`.
 //!
 //! ```toml
+//! # never offer these in the clean-up view (item names, case-insensitive, port not needed)
+//! keep = ["spotify", "postgres"]
+//!
 //! # force a process name or app name into a group
 //! [pin]
 //! ollama = "dev"
@@ -14,11 +17,14 @@ use std::collections::HashMap;
 #[derive(Deserialize, Default)]
 struct Raw {
     #[serde(default)]
+    keep: Vec<String>,
+    #[serde(default)]
     pin: HashMap<String, String>,
 }
 
 #[derive(Clone, Debug, Default)]
 pub struct Rules {
+    pub keep: Vec<String>,
     pub pin: HashMap<String, Group>,
     /// A message for the status line when the file exists but is wrong.
     pub warning: Option<String>,
@@ -29,6 +35,7 @@ impl Rules {
         match toml::from_str::<Raw>(text) {
             Ok(raw) => {
                 let mut r = Rules {
+                    keep: raw.keep.iter().map(|k| k.to_lowercase()).collect(),
                     ..Default::default()
                 };
                 for (name, group) in raw.pin {
@@ -69,6 +76,7 @@ mod tests {
     #[test]
     fn parses_keep_and_pin() {
         let r = Rules::parse("keep = [\"Spotify\"]\n[pin]\nollama = \"dev\"\n\"My Daemon\" = \"system\"\n");
+        assert_eq!(r.keep, vec!["spotify"]);
         assert_eq!(r.group_for("Ollama"), Some(Group::Dev));
         assert_eq!(r.group_for("my daemon"), Some(Group::System));
         assert_eq!(r.group_for("other"), None);

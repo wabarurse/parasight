@@ -467,6 +467,9 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
     if let Some(c) = &app.confirm {
         return vec![s(format!(" {} ", c.text), fg(AMBER)), raw("y", bold(TEAL)), s(" / ", fg(DIM)), raw("n", bold(TEAL))];
     }
+    if let Some(f) = crate::cleanup_view::footer(app) {
+        return f;
+    }
     if !app.flash.is_empty() && !app.filtering {
         return vec![s(format!(" {}", app.flash), fg(DIM))];
     }
@@ -489,6 +492,7 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
             ("1/2/3", "metric"),
             ("/", "filter"),
             ("dd", "kill"),
+            ("c", "clean"),
             ("q", "quit"),
         ])
     };
@@ -521,6 +525,9 @@ pub fn draw(f: &mut Frame, app: &mut App) {
     list(buf, Rect::new(body.x, body.y, lw, body.height), app, &rows, sel);
     if lw < body.width {
         (app.table_h, app.tsel, app.toff) = detail(buf, Rect::new(body.x + lw, body.y, body.width - lw, body.height), app);
+    }
+    if app.clean.is_some() {
+        crate::cleanup_view::draw(buf, Rect::new(area.x, area.y, area.width, area.height - 1), app);
     }
     let foot = footer(app, area.width);
     put(buf, area.x, area.bottom() - 1, area.width, &foot, None);
