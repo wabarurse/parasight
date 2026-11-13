@@ -241,7 +241,7 @@ fn run_tui(args: &Args) -> std::io::Result<()> {
         }
         // sleep until the next refresh, a key, or (while something is closing) a short while
         let wait = next_tick.saturating_duration_since(Instant::now());
-        let wait = if app.waiting() { wait.min(Duration::from_millis(100)) } else { wait };
+        let wait = if app.waiting() { wait.min(Duration::from_millis(80)) } else { wait };
         match event::poll(wait) {
             Ok(true) => {
                 // take what is waiting (a burst of keys, a paste) before drawing once; bounded,
@@ -264,7 +264,8 @@ fn run_tui(args: &Args) -> std::io::Result<()> {
             Ok(false) => {}
             Err(e) => break Err(e),
         }
-        if app.poll_actions() | app.ask.poll() {
+        // while a question is out, keep redrawing so the loader turns
+        if app.poll_actions() | app.ask.poll() | app.ask.busy() {
             dirty = true;
         }
         if Instant::now() >= next_tick {

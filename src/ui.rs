@@ -476,12 +476,13 @@ fn footer(app: &App, w: u16) -> Vec<Seg> {
     {
         use crate::ask::Line;
         let (text, style) = match line {
-            Line::Waiting(t) if t.trim_matches('…').is_empty() => ("asking claude code…", fg(DIM)),
-            Line::Waiting(t) => (t.as_str(), fg(DIM)),
+            Line::Waiting(t) => (if t.trim_matches('…').is_empty() { "asking claude code" } else { t.as_str() }, fg(DIM)),
             Line::Answer(t) => (t.as_str(), fg(BRIGHT)),
             Line::Failed(t) => (t.as_str(), fg(AMBER)),
         };
-        return vec![raw(" K ", bold(TEAL)), s(format!("{label}{text}"), style)];
+        // a turning loader in place of the K while the answer is on its way
+        let lead = if matches!(line, Line::Waiting(_)) { format!(" {} ", app.ask.spinner()) } else { " K ".to_string() };
+        return vec![raw(lead, bold(TEAL)), s(format!("{label}{text}"), style)];
     }
     if !app.flash.is_empty() && !app.filtering {
         return vec![s(format!(" {}", app.flash), fg(DIM))];

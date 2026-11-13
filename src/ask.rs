@@ -115,6 +115,13 @@ impl Ask {
         self.run.is_some()
     }
 
+    /// The loader's current frame while a question is out, stepping every 80 ms.
+    pub fn spinner(&self) -> &'static str {
+        const FRAMES: [&str; 10] = ["⠋", "⠙", "⠹", "⠸", "⠼", "⠴", "⠦", "⠧", "⠇", "⠏"];
+        let ms = self.run.as_ref().map_or(0, |r| r.started.elapsed().as_millis());
+        FRAMES[(ms / 80) as usize % FRAMES.len()]
+    }
+
     pub fn set(&mut self, key: &str, line: Line) {
         self.cache.insert(key.to_string(), line);
     }
