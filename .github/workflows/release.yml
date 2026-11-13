@@ -1,0 +1,40 @@
+# Builds the binaries install.sh downloads. Runs when a version tag is pushed:
+#   git tag v0.1.0 && git push origin v0.1.0
+name: release
+
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: macos-14
+    strategy:
+      # an Intel build that fails must not hold back the Apple silicon one
+      fail-fast: false
+      matrix:
+        target: [aarch64-apple-darwin, x86_64-apple-darwin]
+    env:
+      GH_TOKEN: ${{ github.token }}
+      ASSET: parasight-${{ matrix.target }}.tar.gz
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install Rust
+        run: |
+          rustup toolchain install stable --profile minimal
+          rustup default stable
+          rustup target add ${{ matrix.target }}
+      - name: Build
+        run: cargo build --release --locked --target ${{ matrix.target }}
+      - name: Package
+        run: |
+          tar -czf "$ASSET" -C "target/${{ matrix.target }}/release" parasight
+          shasum -a 256 "$ASSET" > "$ASSET.sha256"
+      - name: Publish
+        run: |
+          # both jobs race to create the release; whichever loses just uploads
+          gh release create "$GITHUB_REF_NAME" --title "$GITHUB_REF_NAME" --generate-notes 2>/dev/null || true
+          gh release upload "$GITHUB_REF_NAME" "$ASSET" "$ASSET.sha256" --clobber

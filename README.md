@@ -23,12 +23,32 @@ groups (`apps`, `dev`, `system`), with cpu, memory and per-process network.
 
 ## Install and run
 
-Needs macOS and a Rust toolchain.
+Needs macOS.
+
+```sh
+curl -fsSL https://raw.githubusercontent.com/wabarurse/parasight/main/install.sh | sh
+parasight
+```
+
+The script downloads the latest release for your Mac, checks its sha256 and puts the binary
+in `~/.local/bin` (set `PARASIGHT_INSTALL_DIR` to change that). If there is no release it
+can reach, it builds from source with cargo instead. Run it again to update.
+
+While the repository is private, plain `curl` cannot read it. Fetch the script through the
+`gh` cli instead; the script then uses `gh` for the download too:
+
+```sh
+gh api repos/wabarurse/parasight/contents/install.sh -H "Accept: application/vnd.github.raw" | sh
+```
+
+From a checkout, with a Rust toolchain:
 
 ```sh
 cargo install --path .     # or: cargo build --release && ./target/release/parasight
-parasight
 ```
+
+Releases are built by `.github/workflows/release.yml` when a version tag is pushed
+(`git tag v0.1.0 && git push origin v0.1.0`).
 
 Other ways to run it:
 
